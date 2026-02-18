@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0b3a8a" />
+<title>Gestione abbonamenti</title>
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<!-- Top bar -->
+<header class="topbar">
+<div class="brand">
+<div class="logo" aria-hidden="true">S</div>
+<div class="brand-text">
+<div class="brand-title">Gestione abbonamenti</div>
+<div class="brand-subtitle">Tieni tutto sotto controllo, senza stress.</div>
+</div>
+</div>
+
+<button id="settingsBtn" class="icon-btn" title="Impostazioni" aria-label="Impostazioni">
+⚙️
+</button>
+</header>
+
+<!-- Hero -->
+<main class="shell">
+<section class="hero">
+<h1 class="hero-title">I tuoi abbonamenti</h1>
+<p class="hero-desc">
+Aggiungi, modifica, elimina. Calcolo automatico del totale mensile/annuo. Funziona offline.
+</p>
+
+<div class="hero-actions">
+<button id="addBtn" class="btn primary">＋ Aggiungi</button>
+
+<div class="search">
+<input id="searchInput" type="search" placeholder="Cerca (es. Spotify, Netflix)..." autocomplete="off" />
+</div>
+
+<select id="filterCategory" class="select">
+<option value="all">Tutte le categorie</option>
+</select>
+
+<select id="sortBy" class="select">
+<option value="next">Ordina: prossimo addebito</option>
+<option value="priceDesc">Ordina: prezzo ↓</option>
+<option value="priceAsc">Ordina: prezzo ↑</option>
+<option value="name">Ordina: nome A→Z</option>
+</select>
+</div>
+</section>
+
+<!-- Stats -->
+<section class="stats">
+<div class="stat">
+<div class="stat-label">Totale mensile</div>
+<div id="totalMonthly" class="stat-value">€ 0,00</div>
+<div class="stat-note">Equivalente mensile (anche annuali)</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Totale annuo</div>
+<div id="totalYearly" class="stat-value">€ 0,00</div>
+<div class="stat-note">Proiezione 12 mesi</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Prossimo addebito</div>
+<div id="nextCharge" class="stat-value">—</div>
+<div id="nextChargeNote" class="stat-note">—</div>
+</div>
+
+<div class="stat">
+<div class="stat-label">Abbonamenti attivi</div>
+<div id="activeCount" class="stat-value">0</div>
+<div class="stat-note">Pausati esclusi</div>
+</div>
+</section>
+
+<!-- List -->
+<section class="card">
+<div class="card-head">
+<div class="card-title">Elenco</div>
+<div class="card-tools">
+<button id="exportJsonBtn" class="btn secondary">Esporta JSON</button>
+<button id="importJsonBtn" class="btn secondary">Importa JSON</button>
+<button id="exportCsvBtn" class="btn secondary">Esporta CSV <span class="pill pro">PRO</span></button>
+</div>
+</div>
+
+<div id="emptyState" class="empty">
+<div class="empty-title">Nessun abbonamento ancora.</div>
+<div class="empty-desc">Premi “Aggiungi” e inserisci il primo.</div>
+</div>
+
+<div id="subList" class="list" aria-live="polite"></div>
+</section>
+
+<!-- Category mini-chart -->
+<section class="card">
+<div class="card-head">
+<div class="card-title">Spesa per categoria</div>
+<div class="card-subtitle">Barre proporzionali al totale mensile equivalente</div>
+</div>
+<div id="catChart" class="chart"></div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+<div class="footer-left">
+<span class="dot"></span> Offline-ready (PWA)
+</div>
+<div class="footer-right">
+<button id="proBtn" class="btn ghost">Sblocca PRO</button>
+</div>
+</footer>
+</main>
+
+<!-- MODAL: Add/Edit subscription (deve essere PRESENTE in HTML ma NASCOSTO) -->
+<div id="modalOverlay" class="overlay hidden" aria-hidden="true">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+<div class="modal-head">
+<div>
+<div id="modalTitle" class="modal-title">Nuovo abbonamento</div>
+<div class="modal-subtitle">Inserisci i dettagli. Puoi modificarli quando vuoi.</div>
+</div>
+<button id="closeModalBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+</div>
+
+<form id="subForm" class="form">
+<div class="grid">
+<label class="field">
+<span class="label">Nome</span>
+<input id="subName" type="text" placeholder="Es. Spotify" required maxlength="40" />
+</label>
+
+<label class="field">
+<span class="label">Categoria</span>
+<select id="subCategory" class="select">
+<option value="Streaming">Streaming</option>
+<option value="Musica">Musica</option>
+<option value="Gaming">Gaming</option>
+<option value="Produttività">Produttività</option>
+<option value="Cloud">Cloud</option>
+<option value="Scuola">Scuola</option>
+<option value="Altro">Altro</option>
+</select>
+</label>
+
+<label class="field">
+<span class="label">Prezzo</span>
+<input id="subPrice" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Es. 9.99" required />
+</label>
+
+<label class="field">
+<span class="label">Frequenza</span>
+<select id="subCycle" class="select">
+<option value="monthly">Mensile</option>
+<option value="yearly">Annuale</option>
+<option value="custom">Personalizzata (giorni)</option>
+</select>
+</label>
+
+<label id="customDaysWrap" class="field hidden">
+<span class="label">Ogni quanti giorni?</span>
+<input id="subEveryDays" type="number" step="1" min="1" value="30" />
+</label>
+
+<label class="field">
+<span class="label">Prossimo addebito</span>
+<input id="subNextDate" type="date" required />
+</label>
+
+<label class="field">
+<span class="label">Metodo pagamento (facoltativo)</span>
+<input id="subPayMethod" type="text" placeholder="Carta, PayPal, Contanti..." maxlength="30" />
+</label>
+
+<label class="field">
+<span class="label">Promemoria (giorni prima)</span>
+<input id="subRemindDays" type="number" step="1" min="0" value="2" />
+</label>
+
+<label class="field col2">
+<span class="label">Note (facoltative)</span>
+<textarea id="subNotes" rows="3" placeholder="Es. Piano famiglia, rinnovo il 15, ecc..."></textarea>
+</label>
+
+<label class="toggle col2">
+<input id="subPaused" type="checkbox" />
+<span>Pausa (non conta nei totali)</span>
+</label>
+</div>
+
+<div class="modal-actions">
+<button id="cancelBtn" type="button" class="btn secondary">Annulla</button>
+<button id="saveBtn" type="submit" class="btn primary">Salva</button>
+</div>
+
+<input id="editingId" type="hidden" value="" />
+</form>
+</div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsOverlay" class="overlay hidden" aria-hidden="true">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+<div class="modal-head">
+<div>
+<div id="settingsTitle" class="modal-title">Impostazioni</div>
+<div class="modal-subtitle">Tema, PRO, dati locali.</div>
+</div>
+<button id="closeSettingsBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+</div>
+
+<div class="form">
+<div class="grid">
+<label class="field">
+<span class="label">Valuta</span>
+<select id="currencySelect" class="select">
+<option value="EUR">EUR (€)</option>
+<option value="USD">USD ($)</option>
+<option value="GBP">GBP (£)</option>
+</select>
+</label>
+
+<label class="toggle">
+<input id="darkToggle" type="checkbox" />
+<span>Tema scuro</span>
+</label>
+
+<div class="field col2">
+<span class="label">Piano</span>
+<div class="plan">
+<div>
+<div id="planName" class="plan-name">FREE</div>
+<div id="planHint" class="plan-hint">Limite 10 abbonamenti • CSV solo PRO</div>
+</div>
+<button id="toggleProBtn" class="btn primary">Attiva PRO (demo)</button>
+</div>
+</div>
+
+<div class="field col2 danger-zone">
+<span class="label">Pericolo</span>
+<button id="wipeBtn" class="btn danger">Cancella tutti i dati</button>
+<div class="hint">Elimina abbonamenti e impostazioni salvate sul tuo computer.</div>
+</div>
+</div>
+
+<div class="modal-actions">
+<button id="closeSettingsBtn2" type="button" class="btn secondary">Chiudi</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- PRO MODAL -->
+<div id="proOverlay" class="overlay hidden" aria-hidden="true">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="proTitle">
+<div class="modal-head">
+<div>
+<div id="proTitle" class="modal-title">Piano PRO</div>
+<div class="modal-subtitle">Sblocca funzioni avanzate (qui in modalità demo locale).</div>
+</div>
+<button id="closeProBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+</div>
+
+<div class="pro-grid">
+<div class="pro-card">
+<div class="pro-name">FREE</div>
+<ul>
+<li>Fino a 10 abbonamenti</li>
+<li>Totali mensili/annui</li>
+<li>Import/Export JSON</li>
+<li>Offline</li>
+</ul>
+</div>
+
+<div class="pro-card featured">
+<div class="pro-name">PRO</div>
+<ul>
+<li>Abbonamenti illimitati</li>
+<li>Export CSV</li>
+<li>Filtri e categorie potenziate</li>
+<li>Tema scuro</li>
+</ul>
+<button id="activateProNow" class="btn primary">Attiva PRO (demo)</button>
+</div>
+</div>
+
+<div class="modal-actions">
+<button id="closeProBtn2" class="btn secondary" type="button">Chiudi</button>
+</div>
+</div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
