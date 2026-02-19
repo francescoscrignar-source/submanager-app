@@ -1,4 +1,5 @@
 :root{
+
 --bg1:#061a3a;
 --bg2:#0b3a8a;
 --card: rgba(255,255,255,0.14);
@@ -44,6 +45,7 @@ position:sticky;
 top:0;
 z-index:5;
 backdrop-filter: blur(14px);
+-webkit-backdrop-filter: blur(14px); /* <-- unica modifica */
 background: linear-gradient(180deg, rgba(0,0,0,0.30), rgba(0,0,0,0.12));
 border-bottom: 1px solid rgba(255,255,255,0.10);
 display:flex;
