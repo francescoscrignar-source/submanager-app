@@ -29,15 +29,30 @@ body.dark{
 }
 
 *{ box-sizing:border-box; }
-html,body{ height:100%; }
+
+/* ✅ MODIFICA: niente height:100% (iOS fa “stacchi”), usiamo min-height */
+html, body{ min-height:100%; }
+
+/* ✅ MODIFICA: background su html (stabile), body trasparente */
+html{
+  min-height:100%;
+  background: radial-gradient(1200px 800px at 20% 10%, rgba(255,255,255,0.12), transparent 55%),
+              radial-gradient(900px 700px at 80% 30%, rgba(89,181,255,0.20), transparent 55%),
+              linear-gradient(180deg, var(--bg1), var(--bg2));
+  background-color: var(--bg2); /* fallback contro micro-stacchi */
+}
+
 body{
 margin:0;
 font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
 color: var(--text);
-background: radial-gradient(1200px 800px at 20% 10%, rgba(255,255,255,0.12), transparent 55%),
-radial-gradient(900px 700px at 80% 30%, rgba(89,181,255,0.20), transparent 55%),
-linear-gradient(180deg, var(--bg1), var(--bg2));
+background: transparent;          /* ✅ MODIFICA */
 overflow-x:hidden;
+min-height: 100svh;               /* ✅ MODIFICA: viewport “stabile” su iOS */
+}
+
+@supports (min-height: 100dvh){
+  body{ min-height: 100dvh; }     /* ✅ MODIFICA (opzionale, ma ottima) */
 }
 
 .topbar{
