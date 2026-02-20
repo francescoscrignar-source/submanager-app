@@ -1,306 +1,423 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="theme-color" content="#0b3a8a" />
-<title>Gestione abbonamenti</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Controlla abbonamenti, rinnovi e costo annuo in un colpo d'occhio. Local-first, promemoria e disdetta guidata." />
+  <meta name="theme-color" content="#061a3a" />
 
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="style.css">
+  <title>FinTrack — Abbonamenti sotto controllo</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
-<!-- Top bar -->
-<header class="topbar">
-<div class="brand">
-<div class="logo" aria-hidden="true">S</div>
-<div class="brand-text">
-<div class="brand-title">Gestione abbonamenti</div>
-<div class="brand-subtitle">Tieni tutto sotto controllo, senza stress.</div>
-</div>
-</div>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">FT</div>
+      <div>
+        <div class="brand-title">FinTrack</div>
+        <div class="brand-subtitle">Abbonamenti • Rinnovi • Shock annuo</div>
+      </div>
+    </div>
 
-<button id="settingsBtn" class="icon-btn" title="Impostazioni" aria-label="Impostazioni">
-⚙️
-</button>
-</header>
+    <div class="top-actions">
+      <button id="proBtn" class="btn ghost">PRO</button>
+      <button id="settingsBtn" class="icon-btn" aria-label="Impostazioni">⚙️</button>
+      <button id="addBtn" class="btn primary">+ Aggiungi</button>
+    </div>
+  </header>
 
-<!-- Hero -->
-<main class="shell">
-<section class="hero">
-<h1 class="hero-title">I tuoi abbonamenti</h1>
-<p class="hero-desc">
-Aggiungi, modifica, elimina. Calcolo automatico del totale mensile/annuo. Funziona offline.
-</p>
+  <main class="shell">
+    <section class="hero">
+      <h1 class="hero-title">Metti gli abbonamenti sotto controllo.</h1>
+      <p class="hero-desc">
+        Inserisci 3 abbonamenti e vedi subito <strong>quanto ti costano davvero all’anno</strong>. Local-first: i dati restano sul tuo dispositivo.
+      </p>
 
-<div class="hero-actions">
-<button id="addBtn" class="btn primary">＋ Aggiungi</button>
+      <div class="hero-actions">
+        <div class="search">
+          <input id="searchInput" placeholder="Cerca (nome, categoria, note)..." />
+        </div>
 
-<div class="search">
-<input id="searchInput" type="search" placeholder="Cerca (es. Spotify, Netflix)..." autocomplete="off" />
-</div>
+        <select id="filterCategory" class="select">
+          <option value="all">Tutte le categorie</option>
+        </select>
 
-<select id="filterCategory" class="select">
-<option value="all">Tutte le categorie</option>
-</select>
+        <select id="sortBy" class="select">
+          <option value="next">Ordina: prossima scadenza</option>
+          <option value="priceDesc">Ordina: costo mensile ↓</option>
+          <option value="priceAsc">Ordina: costo mensile ↑</option>
+          <option value="name">Ordina: nome</option>
+        </select>
 
-<select id="sortBy" class="select">
-<option value="next">Ordina: prossimo addebito</option>
-<option value="priceDesc">Ordina: prezzo ↓</option>
-<option value="priceAsc">Ordina: prezzo ↑</option>
-<option value="name">Ordina: nome A→Z</option>
-</select>
-</div>
-</section>
+        <button id="requestNotifBtn" class="btn secondary">Attiva promemoria</button>
+      </div>
+    </section>
 
-<!-- Stats -->
-<section class="stats">
-<div class="stat">
-<div class="stat-label">Totale mensile</div>
-<div id="totalMonthly" class="stat-value">€ 0,00</div>
-<div class="stat-note">Equivalente mensile (anche annuali)</div>
-</div>
+    <!-- STATS (above the fold) -->
+    <section class="stats">
+      <div class="stat">
+        <div class="stat-label">Totale mensile (equivalente)</div>
+        <div id="totalMonthly" class="stat-value">—</div>
+        <div class="stat-note">Somma degli abbonamenti attivi.</div>
+      </div>
 
-<div class="stat">
-<div class="stat-label">Totale annuo</div>
-<div id="totalYearly" class="stat-value">€ 0,00</div>
-<div class="stat-note">Proiezione 12 mesi</div>
-</div>
+      <div class="stat shock">
+        <div class="stat-label">Totale annuale (shock)</div>
+        <div id="totalYearly" class="stat-value">—</div>
+        <div id="shockNote" class="stat-note">—</div>
+      </div>
 
-<div class="stat">
-<div class="stat-label">Prossimo addebito</div>
-<div id="nextCharge" class="stat-value">—</div>
-<div id="nextChargeNote" class="stat-note">—</div>
-</div>
+      <div class="stat">
+        <div class="stat-label">Prossimo addebito</div>
+        <div id="nextCharge" class="stat-value">—</div>
+        <div id="nextChargeNote" class="stat-note">—</div>
+      </div>
 
-<div class="stat">
-<div class="stat-label">Abbonamenti attivi</div>
-<div id="activeCount" class="stat-value">0</div>
-<div class="stat-note">Pausati esclusi</div>
-</div>
-</section>
+      <div class="stat">
+        <div class="stat-label">Abbonamenti attivi</div>
+        <div id="activeCount" class="stat-value">—</div>
+        <div class="stat-note">Pausa = non conta.</div>
+      </div>
+    </section>
 
-<!-- List -->
-<section class="card">
-<div class="card-head">
-<div class="card-title">Elenco</div>
-<div class="card-tools">
-<button id="exportJsonBtn" class="btn secondary">Esporta JSON</button>
-<button id="importJsonBtn" class="btn secondary">Importa JSON</button>
-<button id="exportCsvBtn" class="btn secondary">Esporta CSV <span class="pill pro">PRO</span></button>
-</div>
-</div>
+    <!-- LIST -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">I tuoi abbonamenti</div>
+          <div class="card-subtitle">Tap su “Disdetta” per la guida rapida.</div>
+        </div>
+        <div class="card-tools">
+          <button id="auditBtn" class="btn secondary">Audit veloce</button>
+          <button id="exportBtn" class="btn ghost">Esporta</button>
+          <button id="importBtn" class="btn ghost">Importa</button>
+        </div>
+      </div>
 
-<div id="emptyState" class="empty">
-<div class="empty-title">Nessun abbonamento ancora.</div>
-<div class="empty-desc">Premi “Aggiungi” e inserisci il primo.</div>
-</div>
+      <div id="emptyState" class="empty hidden">
+        <div class="empty-title">Nessun abbonamento ancora.</div>
+        <div class="empty-desc">Aggiungine 3 per vedere lo shock annuale. Poi l’app ti guiderà su cosa tagliare o mettere in pausa.</div>
+      </div>
 
-<div id="subList" class="list" aria-live="polite"></div>
-</section>
+      <div id="subList" class="list"></div>
+    </section>
 
-<!-- Category mini-chart -->
-<section class="card">
-<div class="card-head">
-<div class="card-title">Spesa per categoria</div>
-<div class="card-subtitle">Barre proporzionali al totale mensile equivalente</div>
-</div>
-<div id="catChart" class="chart"></div>
-</section>
+    <!-- CATEGORY CHART (Top 3) -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Dove vanno i soldi</div>
+          <div class="card-subtitle">Top categorie per costo mensile equivalente.</div>
+        </div>
+      </div>
 
-<!-- Footer -->
-<footer class="footer">
-<div class="footer-left">
-<span class="dot"></span> Offline-ready (PWA)
-</div>
-<div class="footer-right">
-<button id="proBtn" class="btn ghost">Sblocca PRO</button>
-</div>
-</footer>
-</main>
+      <div id="catChart" class="chart"></div>
+    </section>
 
-<!-- MODAL: Add/Edit subscription (deve essere PRESENTE in HTML ma NASCOSTO) -->
-<div id="modalOverlay" class="overlay hidden" aria-hidden="true">
-<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-<div class="modal-head">
-<div>
-<div id="modalTitle" class="modal-title">Nuovo abbonamento</div>
-<div class="modal-subtitle">Inserisci i dettagli. Puoi modificarli quando vuoi.</div>
-</div>
-<button id="closeModalBtn" class="icon-btn" aria-label="Chiudi">✕</button>
-</div>
+    <footer class="footer">
+      <div><span class="dot"></span>Local-first • Nessun account • Nessun dato inviato</div>
+      <div id="buildInfo">v1</div>
+    </footer>
+  </main>
 
-<form id="subForm" class="form">
-<div class="grid">
-<label class="field">
-<span class="label">Nome</span>
-<input id="subName" type="text" placeholder="Es. Spotify" required maxlength="40" />
-</label>
+  <!-- ONBOARDING (2 step) -->
+  <div id="onboardingOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Benvenuto.</div>
+          <div class="modal-subtitle">2 step. Poi vedi lo shock annuale.</div>
+        </div>
+        <button id="closeOnboardingBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
 
-<label class="field">
-<span class="label">Categoria</span>
-<select id="subCategory" class="select">
-<option value="Streaming">Streaming</option>
-<option value="Musica">Musica</option>
-<option value="Gaming">Gaming</option>
-<option value="Produttività">Produttività</option>
-<option value="Cloud">Cloud</option>
-<option value="Scuola">Scuola</option>
-<option value="Altro">Altro</option>
-</select>
-</label>
+      <div class="form">
+        <div id="onbStep1" class="onb-step">
+          <div class="grid">
+            <div class="field">
+              <label class="label">Valuta</label>
+              <select id="onbCurrency" class="select">
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+                <option value="GBP">GBP (£)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Tema scuro</label>
+              <label class="toggle">
+                <input id="onbDark" type="checkbox">
+                Attivo
+              </label>
+            </div>
+          </div>
 
-<label class="field">
-<span class="label">Prezzo</span>
-<input id="subPrice" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Es. 9.99" required />
-</label>
+          <div class="modal-actions">
+            <button id="onbNextBtn" class="btn primary">Continua</button>
+          </div>
+        </div>
 
-<label class="field">
-<span class="label">Frequenza</span>
-<select id="subCycle" class="select">
-<option value="monthly">Mensile</option>
-<option value="yearly">Annuale</option>
-<option value="custom">Personalizzata (giorni)</option>
-</select>
-</label>
+        <div id="onbStep2" class="onb-step hidden">
+          <div class="empty" style="margin-bottom:10px;">
+            <div class="empty-title">Inserisci 3 abbonamenti (rapido)</div>
+            <div class="empty-desc">Puoi usare i template. Dopo il terzo, appare il “wow”.</div>
+          </div>
 
-<label id="customDaysWrap" class="field hidden">
-<span class="label">Ogni quanti giorni?</span>
-<input id="subEveryDays" type="number" step="1" min="1" value="30" />
-</label>
+          <div class="modal-actions">
+            <button id="onbAddBtn" class="btn primary">+ Aggiungi ora</button>
+            <button id="onbDoneBtn" class="btn secondary">Ho finito</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<label class="field">
-<span class="label">Prossimo addebito</span>
-<input id="subNextDate" type="date" required />
-</label>
+  <!-- ADD/EDIT MODAL -->
+  <div id="modalOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div id="modalTitle" class="modal-title">Nuovo abbonamento</div>
+          <div class="modal-subtitle">Tip: seleziona un servizio → auto-compila categoria e disdetta.</div>
+        </div>
+        <button id="closeModalBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
 
-<label class="field">
-<span class="label">Metodo pagamento (facoltativo)</span>
-<input id="subPayMethod" type="text" placeholder="Carta, PayPal, Contanti..." maxlength="30" />
-</label>
+      <form id="subForm" class="form">
+        <input id="editingId" type="hidden" />
 
-<label class="field">
-<span class="label">Promemoria (giorni prima)</span>
-<input id="subRemindDays" type="number" step="1" min="0" value="2" />
-</label>
+        <div class="grid">
+          <div class="field">
+            <label class="label">Servizio</label>
+            <input id="subName" placeholder="Es. Netflix" autocomplete="off" list="catalogList" />
+            <datalist id="catalogList"></datalist>
+          </div>
 
-<label class="field col2">
-<span class="label">Note (facoltative)</span>
-<textarea id="subNotes" rows="3" placeholder="Es. Piano famiglia, rinnovo il 15, ecc..."></textarea>
-</label>
+          <div class="field">
+            <label class="label">Categoria</label>
+            <input id="subCategory" placeholder="Es. Streaming" autocomplete="off" />
+          </div>
 
-<label class="toggle col2">
-<input id="subPaused" type="checkbox" />
-<span>Pausa (non conta nei totali)</span>
-</label>
-</div>
+          <div class="field">
+            <label class="label">Prezzo</label>
+            <input id="subPrice" type="text" inputmode="decimal" placeholder="Es. 9,99" autocomplete="off" />
+          </div>
 
-<div class="modal-actions">
-<button id="cancelBtn" type="button" class="btn secondary">Annulla</button>
-<button id="saveBtn" type="submit" class="btn primary">Salva</button>
-</div>
+          <div class="field">
+            <label class="label">Frequenza</label>
+            <select id="subCycle" class="select">
+              <option value="monthly">Mensile</option>
+              <option value="yearly">Annuale</option>
+              <option value="custom">Ogni N giorni</option>
+            </select>
+          </div>
 
-<input id="editingId" type="hidden" value="" />
-</form>
-</div>
-</div>
+          <div id="customDaysWrap" class="field hidden">
+            <label class="label">Ogni quanti giorni?</label>
+            <input id="subEveryDays" type="number" min="1" value="30" />
+          </div>
 
-<!-- SETTINGS MODAL -->
-<div id="settingsOverlay" class="overlay hidden" aria-hidden="true">
-<div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-<div class="modal-head">
-<div>
-<div id="settingsTitle" class="modal-title">Impostazioni</div>
-<div class="modal-subtitle">Tema, PRO, dati locali.</div>
-</div>
-<button id="closeSettingsBtn" class="icon-btn" aria-label="Chiudi">✕</button>
-</div>
+          <div class="field">
+            <label class="label">Prossimo addebito</label>
+            <input id="subNextDate" type="date" />
+          </div>
 
-<div class="form">
-<div class="grid">
-<label class="field">
-<span class="label">Valuta</span>
-<select id="currencySelect" class="select">
-<option value="EUR">EUR (€)</option>
-<option value="USD">USD ($)</option>
-<option value="GBP">GBP (£)</option>
-</select>
-</label>
+          <div class="field col2">
+            <label class="toggle">
+              <input id="subPaused" type="checkbox" />
+              Pausa (non conteggiare)
+            </label>
+          </div>
 
-<label class="toggle">
-<input id="darkToggle" type="checkbox" />
-<span>Tema scuro</span>
-</label>
+          <div class="field col2">
+            <label class="label">Note</label>
+            <textarea id="subNotes" rows="2" placeholder="Facoltativo…"></textarea>
+          </div>
+        </div>
 
-<div class="field col2">
-<span class="label">Piano</span>
-<div class="plan">
-<div>
-<div id="planName" class="plan-name">FREE</div>
-<div id="planHint" class="plan-hint">Limite 10 abbonamenti • CSV solo PRO</div>
-</div>
-<button id="toggleProBtn" class="btn primary">Attiva PRO (demo)</button>
-</div>
-</div>
+        <div class="modal-actions">
+          <button id="cancelBtn" type="button" class="btn ghost">Annulla</button>
+          <button type="submit" class="btn primary">Salva</button>
+        </div>
 
-<div class="field col2 danger-zone">
-<span class="label">Pericolo</span>
-<button id="wipeBtn" class="btn danger">Cancella tutti i dati</button>
-<div class="hint">Elimina abbonamenti e impostazioni salvate sul tuo computer.</div>
-</div>
-</div>
+        <div class="hint">
+          Promemoria predefiniti: <strong>7 giorni</strong>, <strong>1 giorno</strong> e <strong>oggi</strong> (quando apri l’app).  
+          Se il dispositivo supporta notifiche, puoi attivarle.
+        </div>
+      </form>
+    </div>
+  </div>
 
-<div class="modal-actions">
-<button id="closeSettingsBtn2" type="button" class="btn secondary">Chiudi</button>
-</div>
-</div>
-</div>
-</div>
+  <!-- CANCEL ASSISTANT -->
+  <div id="cancelOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Disdetta guidata</div>
+          <div id="cancelSubtitle" class="modal-subtitle">—</div>
+        </div>
+        <button id="closeCancelBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
 
-<!-- PRO MODAL -->
-<div id="proOverlay" class="overlay hidden" aria-hidden="true">
-<div class="modal" role="dialog" aria-modal="true" aria-labelledby="proTitle">
-<div class="modal-head">
-<div>
-<div id="proTitle" class="modal-title">Piano PRO</div>
-<div class="modal-subtitle">Sblocca funzioni avanzate (qui in modalità demo locale).</div>
-</div>
-<button id="closeProBtn" class="icon-btn" aria-label="Chiudi">✕</button>
-</div>
+      <div class="form">
+        <div id="cancelSteps" class="cancel-steps"></div>
 
-<div class="pro-grid">
-<div class="pro-card">
-<div class="pro-name">FREE</div>
-<ul>
-<li>Fino a 10 abbonamenti</li>
-<li>Totali mensili/annui</li>
-<li>Import/Export JSON</li>
-<li>Offline</li>
-</ul>
-</div>
+        <div class="modal-actions">
+          <a id="cancelLink" class="btn primary" href="#" target="_blank" rel="noopener">Apri pagina disdetta</a>
+          <button id="markCanceledBtn" class="btn danger">Segna come disdetto</button>
+        </div>
 
-<div class="pro-card featured">
-<div class="pro-name">PRO</div>
-<ul>
-<li>Abbonamenti illimitati</li>
-<li>Export CSV</li>
-<li>Filtri e categorie potenziate</li>
-<li>Tema scuro</li>
-</ul>
-<button id="activateProNow" class="btn primary">Attiva PRO (demo)</button>
-</div>
-</div>
+        <div class="hint">
+          Nota: guida informativa. Le procedure cambiano spesso: se il link non è corretto, aggiorna il campo “Servizio” o inserisci manualmente una nota.
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="modal-actions">
-<button id="closeProBtn2" class="btn secondary" type="button">Chiudi</button>
-</div>
-</div>
-</div>
+  <!-- SETTINGS -->
+  <div id="settingsOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Impostazioni</div>
+          <div class="modal-subtitle">Local-first. Nessun account. Nessun dato inviato.</div>
+        </div>
+        <button id="closeSettingsBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
 
-<!-- Toast -->
-<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+      <div class="form">
+        <div class="grid">
+          <div class="field">
+            <label class="label">Valuta</label>
+            <select id="currencySelect" class="select">
+              <option value="EUR">EUR (€)</option>
+              <option value="USD">USD ($)</option>
+              <option value="GBP">GBP (£)</option>
+            </select>
+          </div>
 
-<script src="app.js"></script>
+          <div class="field">
+            <label class="label">Tema</label>
+            <label class="toggle">
+              <input id="darkToggle" type="checkbox">
+              Scuro
+            </label>
+          </div>
+        </div>
+
+        <div class="plan">
+          <div>
+            <div id="planName" class="plan-name">FREE</div>
+            <div id="planHint" class="plan-hint">Limite 10 abbonamenti • Paywall solo dopo valore</div>
+          </div>
+          <button id="toggleProBtn" class="btn secondary">Attiva PRO (demo)</button>
+        </div>
+
+        <div class="danger-zone">
+          <div><strong>Privacy</strong></div>
+          <div class="hint">
+            I tuoi dati restano nel tuo browser (localStorage). Se cancelli cache/dati del browser, perdi i dati: usa “Esporta”.
+          </div>
+        </div>
+
+        <div class="danger-zone" style="margin-top:10px;">
+          <div><strong>Analytics (locale)</strong></div>
+          <div class="hint" id="analyticsBox">—</div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="wipeBtn" class="btn danger">Cancella tutti i dati</button>
+          <button id="closeSettingsBtn2" class="btn ghost">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRO PAYWALL (value-first) -->
+  <div id="proOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Passa a PRO</div>
+          <div class="modal-subtitle">Sblocca il controllo totale. Annuale consigliato.</div>
+        </div>
+        <button id="closeProBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
+
+      <div class="form">
+        <div class="pro-grid">
+          <div class="pro-card featured">
+            <div class="pro-name">PRO Annuale <span class="pill pro">consigliato</span></div>
+            <ul>
+              <li>Abbonamenti illimitati</li>
+              <li>Audit veloce più potente</li>
+              <li>Notifiche (se supportate) + reminder sempre</li>
+              <li>Export/Import avanzati</li>
+            </ul>
+          </div>
+
+          <div class="pro-card">
+            <div class="pro-name">FREE</div>
+            <ul>
+              <li>Fino a 10 abbonamenti</li>
+              <li>Shock annuale + prossimi rinnovi</li>
+              <li>Disdetta guidata (base)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="hint">
+          Demo: il tasto qui sotto attiva PRO “finto” (per test). Per pagamenti reali serve Stripe / Store.
+        </div>
+
+        <div class="modal-actions">
+          <button id="activateProNow" class="btn primary">Attiva PRO (demo)</button>
+          <button id="closeProBtn2" class="btn ghost">Non ora</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WOW overlay (after 3 subs) -->
+  <div id="wowOverlay" class="overlay hidden" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">Ecco la realtà.</div>
+          <div class="modal-subtitle">Questo è il costo annuo “vero”.</div>
+        </div>
+        <button id="closeWowBtn" class="icon-btn" aria-label="Chiudi">✕</button>
+      </div>
+      <div class="form">
+        <div class="empty">
+          <div class="empty-title">Totale annuale:</div>
+          <div id="wowYear" style="font-size:32px;font-weight:900;margin-top:6px;">—</div>
+          <div id="wowHint" class="empty-desc">—</div>
+        </div>
+
+        <div class="modal-actions">
+          <button id="wowOpenPro" class="btn primary">Sblocca PRO</button>
+          <button id="wowClose" class="btn ghost">Ok</button>
+        </div>
+
+        <div class="hint">
+          Non è “consulenza finanziaria”. È un calcolo: ti aiuta a vedere e decidere.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="app.js" defer></script>
 </body>
 </html>
