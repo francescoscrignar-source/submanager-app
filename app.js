@@ -1,28 +1,76 @@
+"use strict";
+
 /* ==========
-Storage & state
+Storage keys
 ========== */
-const STORAGE_KEY = "subsapp.v1";
-const SETTINGS_KEY = "subsapp.settings.v1";
-const PRO_KEY = "subsapp.pro";
-
-let subs = [];
-let settings = {
-  currency: "EUR",
-  dark: false
-};
-
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
+const STORAGE_KEY = "fintrack.subs.v2";
+const SETTINGS_KEY = "fintrack.settings.v2";
+const PRO_KEY = "fintrack.pro.v1";
+const ONB_KEY = "fintrack.onboarding.done.v1";
+const ANALYTICS_KEY = "fintrack.analytics.v1";
+const REMIND_KEY = "fintrack.reminders.sent.v1";
+const WOW_KEY = "fintrack.wow.seen.v1";
 
 /* ==========
-DOM
+State
+========== */
+let subs = [];
+let settings = { currency: "EUR", dark: false };
+
+const DEFAULT_CATALOG = [
+  { name:"Netflix", category:"Streaming", cycle:"monthly", cancelUrl:"https://www.netflix.com/cancelplan", steps:[
+    "Apri Account → Abbonamento.",
+    "Seleziona “Disdici abbonamento”.",
+    "Conferma. Controlla email."
+  ]},
+  { name:"Amazon Prime", category:"Streaming", cycle:"monthly", cancelUrl:"https://www.amazon.it/gp/primecentral", steps:[
+    "Prime → Gestisci iscrizione.",
+    "Seleziona “Termina iscrizione”.",
+    "Conferma fino alla fine."
+  ]},
+  { name:"Spotify", category:"Musica", cycle:"monthly", cancelUrl:"https://www.spotify.com/account/", steps:[
+    "Account → Il tuo piano.",
+    "Cambia piano → Annulla Premium.",
+    "Conferma. Controlla data fine."
+  ]},
+  { name:"YouTube Premium", category:"Streaming", cycle:"monthly", cancelUrl:"https://www.youtube.com/paid_memberships", steps:[
+    "Abbonamenti a pagamento.",
+    "Gestisci → Annulla.",
+    "Conferma."
+  ]},
+  { name:"iCloud", category:"Cloud", cycle:"monthly", cancelUrl:"https://support.apple.com/it-it/HT202039", steps:[
+    "Impostazioni iPhone → Nome → Abbonamenti.",
+    "Seleziona iCloud / Archiviazione.",
+    "Annulla o cambia piano."
+  ]},
+  { name:"Google One", category:"Cloud", cycle:"monthly", cancelUrl:"https://one.google.com/subscriptions", steps:[
+    "Google One → Impostazioni.",
+    "Gestisci abbonamento.",
+    "Annulla."
+  ]},
+  { name:"PlayStation Plus", category:"Gaming", cycle:"yearly", cancelUrl:"https://www.playstation.com/it-it/support/store/cancel-ps-store-subscription/", steps:[
+    "Account PSN → Abbonamenti.",
+    "Seleziona PS Plus.",
+    "Disattiva rinnovo automatico."
+  ]},
+  { name:"Microsoft 365", category:"Produttività", cycle:"monthly", cancelUrl:"https://account.microsoft.com/services/", steps:[
+    "Servizi e abbonamenti.",
+    "Gestisci → Annulla.",
+    "Conferma."
+  ]},
+];
+
+/* ==========
+DOM helpers
 ========== */
 const $ = (id) => document.getElementById(id);
 
 const modalOverlay = $("modalOverlay");
 const settingsOverlay = $("settingsOverlay");
 const proOverlay = $("proOverlay");
+const cancelOverlay = $("cancelOverlay");
+const onboardingOverlay = $("onboardingOverlay");
+const wowOverlay = $("wowOverlay");
 
 const addBtn = $("addBtn");
 const subList = $("subList");
@@ -30,6 +78,7 @@ const emptyState = $("emptyState");
 
 const totalMonthlyEl = $("totalMonthly");
 const totalYearlyEl = $("totalYearly");
+const shockNoteEl = $("shockNote");
 const nextChargeEl = $("nextCharge");
 const nextChargeNoteEl = $("nextChargeNote");
 const activeCountEl = $("activeCount");
@@ -38,9 +87,11 @@ const searchInput = $("searchInput");
 const filterCategory = $("filterCategory");
 const sortBy = $("sortBy");
 
-const exportJsonBtn = $("exportJsonBtn");
-const importJsonBtn = $("importJsonBtn");
-const exportCsvBtn = $("exportCsvBtn");
+const exportBtn = $("exportBtn");
+const importBtn = $("importBtn");
+
+const requestNotifBtn = $("requestNotifBtn");
+const auditBtn = $("auditBtn");
 
 const settingsBtn = $("settingsBtn");
 const currencySelect = $("currencySelect");
@@ -49,6 +100,7 @@ const planName = $("planName");
 const planHint = $("planHint");
 const toggleProBtn = $("toggleProBtn");
 const wipeBtn = $("wipeBtn");
+const analyticsBox = $("analyticsBox");
 
 const proBtn = $("proBtn");
 const activateProNow = $("activateProNow");
@@ -58,14 +110,38 @@ const closeProBtn2 = $("closeProBtn2");
 const closeSettingsBtn = $("closeSettingsBtn");
 const closeSettingsBtn2 = $("closeSettingsBtn2");
 
+const closeModalBtn = $("closeModalBtn");
+const cancelBtn = $("cancelBtn");
+
 const toast = $("toast");
+
+// Onboarding
+const closeOnboardingBtn = $("closeOnboardingBtn");
+const onbStep1 = $("onbStep1");
+const onbStep2 = $("onbStep2");
+const onbCurrency = $("onbCurrency");
+const onbDark = $("onbDark");
+const onbNextBtn = $("onbNextBtn");
+const onbAddBtn = $("onbAddBtn");
+const onbDoneBtn = $("onbDoneBtn");
+
+// Wow
+const wowYear = $("wowYear");
+const wowHint = $("wowHint");
+const closeWowBtn = $("closeWowBtn");
+const wowOpenPro = $("wowOpenPro");
+const wowClose = $("wowClose");
+
+// Cancel assistant
+const cancelSubtitle = $("cancelSubtitle");
+const cancelSteps = $("cancelSteps");
+const cancelLink = $("cancelLink");
+const closeCancelBtn = $("closeCancelBtn");
+const markCanceledBtn = $("markCanceledBtn");
 
 // Form
 const subForm = $("subForm");
 const modalTitle = $("modalTitle");
-const closeModalBtn = $("closeModalBtn");
-const cancelBtn = $("cancelBtn");
-
 const editingId = $("editingId");
 const subName = $("subName");
 const subCategory = $("subCategory");
@@ -74,15 +150,39 @@ const subCycle = $("subCycle");
 const customDaysWrap = $("customDaysWrap");
 const subEveryDays = $("subEveryDays");
 const subNextDate = $("subNextDate");
-const subPayMethod = $("subPayMethod");
-const subRemindDays = $("subRemindDays");
 const subNotes = $("subNotes");
 const subPaused = $("subPaused");
 
+const catalogList = $("catalogList");
+
 const catChart = $("catChart");
+const buildInfo = $("buildInfo");
 
 /* ==========
-Helpers
+Analytics (local)
+========== */
+function aLoad() {
+  try { return JSON.parse(localStorage.getItem(ANALYTICS_KEY) || "{}") || {}; }
+  catch { return {}; }
+}
+function aSave(obj) {
+  localStorage.setItem(ANALYTICS_KEY, JSON.stringify(obj));
+}
+function track(eventName) {
+  const a = aLoad();
+  a[eventName] = (a[eventName] || 0) + 1;
+  a.last = new Date().toISOString();
+  aSave(a);
+}
+function analyticsText() {
+  const a = aLoad();
+  const keys = ["app_open","open_add","save_sub","open_pro","activate_pro","notif_request","notif_granted","export","import"];
+  const lines = keys.map(k => `${k}: ${a[k] || 0}`);
+  return lines.join(" • ") + (a.last ? `\nUltimo evento: ${a.last}` : "");
+}
+
+/* ==========
+Utils
 ========== */
 function showToast(msg) {
   toast.textContent = msg;
@@ -100,13 +200,15 @@ function money(n) {
   try {
     return new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(n);
   } catch {
-    // fallback
-    return `${currency} ${n.toFixed(2)}`;
+    return `${currency} ${Number(n || 0).toFixed(2)}`;
   }
 }
 
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
 function toISODate(d) {
-  // d: Date
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -114,9 +216,8 @@ function toISODate(d) {
 }
 
 function parseISO(s) {
-  // s: "YYYY-MM-DD"
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  const [y, m, d] = String(s || "").split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
 }
 
 function addDays(date, days) {
@@ -125,37 +226,35 @@ function addDays(date, days) {
   return d;
 }
 
-/* ==========
-✅ FIX DECIMALI (virgola/punto)
-- Accetta 3,50 oppure 3.50
-- Ignora simboli e spazi
-- Gestisce anche "1.234,56" (stile IT) trasformandolo in 1234.56
-========== */
+/* ✅ robusto per virgola/punto (IT/EN) */
 function parseEuro(input) {
   if (input == null) return NaN;
-
   let s = String(input).trim();
-
-  // tieni solo cifre, virgola e punto
   s = s.replace(/[^\d.,]/g, "");
-
   if (!s) return NaN;
 
-  // Se c'è la virgola, la trattiamo come separatore decimale (stile IT)
   if (s.includes(",")) {
-    s = s.replace(/\./g, "");  // punti come separatori migliaia -> via
-    s = s.replace(",", ".");   // virgola -> punto per Number()
+    s = s.replace(/\./g, "");
+    s = s.replace(",", ".");
   } else {
-    // Se non c'è virgola ma ci sono più punti, trattali come migliaia (tieni solo l’ultimo come decimale)
     const parts = s.split(".");
     if (parts.length > 2) {
       const last = parts.pop();
       s = parts.join("") + "." + last;
     }
   }
-
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function normalizeCategory(cat) {
+  return (cat || "Altro").trim() || "Altro";
 }
 
 function cycleToDays(sub) {
@@ -165,43 +264,58 @@ function cycleToDays(sub) {
 }
 
 function monthlyEquivalent(sub) {
-  // prezzo per mese equivalente
-  const price = parseEuro(sub.price ?? 0); // ✅ FIX: invece di Number(...)
-  const safePrice = Number.isFinite(price) ? price : 0;
+  const p = parseEuro(sub.price ?? 0);
+  const price = Number.isFinite(p) ? p : 0;
 
-  if (sub.cycle === "monthly") return safePrice;
-  if (sub.cycle === "yearly") return safePrice / 12;
-  // custom: price ogni N giorni -> al mese (30 giorni)
+  if (sub.cycle === "monthly") return price;
+  if (sub.cycle === "yearly") return price / 12;
+
   const days = cycleToDays(sub);
-  return safePrice * (30 / days);
+  return price * (30 / days);
 }
 
 function yearlyEquivalent(sub) {
   return monthlyEquivalent(sub) * 12;
 }
 
-function normalizeCategory(cat) {
-  return (cat || "Altro").trim();
+/* ==========
+Catalog
+========== */
+function rebuildCatalogDatalist() {
+  catalogList.innerHTML = DEFAULT_CATALOG
+    .map(x => `<option value="${escapeHtml(x.name)}"></option>`)
+    .join("");
+}
+function findCatalog(name) {
+  const n = String(name || "").trim().toLowerCase();
+  return DEFAULT_CATALOG.find(x => x.name.toLowerCase() === n) || null;
 }
 
 /* ==========
-Modal control (questa è la parte che evita “modal sempre aperto”)
+Overlays control
 ========== */
+function openOverlay(el) {
+  el.classList.remove("hidden");
+  el.setAttribute("aria-hidden", "false");
+}
+function closeOverlay(el) {
+  el.classList.add("hidden");
+  el.setAttribute("aria-hidden", "true");
+}
+
 function openModal(editSub = null) {
-  modalOverlay.classList.remove("hidden");
-  modalOverlay.setAttribute("aria-hidden", "false");
+  track("open_add");
+  openOverlay(modalOverlay);
 
   if (editSub) {
     modalTitle.textContent = "Modifica abbonamento";
     editingId.value = editSub.id;
     subName.value = editSub.name;
     subCategory.value = editSub.category;
-    subPrice.value = editSub.price; // (ok: può essere "3,50" o "3.5")
+    subPrice.value = editSub.price;
     subCycle.value = editSub.cycle;
     subEveryDays.value = editSub.everyDays || 30;
     subNextDate.value = editSub.nextDate;
-    subPayMethod.value = editSub.payMethod || "";
-    subRemindDays.value = editSub.remindDays ?? 2;
     subNotes.value = editSub.notes || "";
     subPaused.checked = !!editSub.paused;
   } else {
@@ -211,10 +325,8 @@ function openModal(editSub = null) {
     subCategory.value = "Streaming";
     subCycle.value = "monthly";
     subEveryDays.value = 30;
-    subRemindDays.value = 2;
     subPaused.checked = false;
 
-    // default: prossimo addebito = oggi + 2 giorni (così non ti “cade” oggi stesso)
     const d = addDays(new Date(), 2);
     subNextDate.value = toISODate(d);
   }
@@ -223,41 +335,79 @@ function openModal(editSub = null) {
   subName.focus();
 }
 
-function closeModal() {
-  modalOverlay.classList.add("hidden");
-  modalOverlay.setAttribute("aria-hidden", "true");
-}
+function closeModal() { closeOverlay(modalOverlay); }
 
 function openSettings() {
-  settingsOverlay.classList.remove("hidden");
-  settingsOverlay.setAttribute("aria-hidden", "false");
-
+  openOverlay(settingsOverlay);
   currencySelect.value = settings.currency || "EUR";
   darkToggle.checked = !!settings.dark;
 
   if (isPro()) {
     planName.textContent = "PRO";
-    planHint.textContent = "Illimitato • CSV attivo • Tema scuro";
+    planHint.textContent = "Illimitato • Paywall value-first • Notifiche";
     toggleProBtn.textContent = "Disattiva PRO (demo)";
   } else {
     planName.textContent = "FREE";
-    planHint.textContent = "Limite 10 abbonamenti • CSV solo PRO";
+    planHint.textContent = "Limite 10 abbonamenti • PRO dopo valore";
     toggleProBtn.textContent = "Attiva PRO (demo)";
   }
+
+  analyticsBox.textContent = analyticsText();
 }
 
-function closeSettings() {
-  settingsOverlay.classList.add("hidden");
-  settingsOverlay.setAttribute("aria-hidden", "true");
-}
+function closeSettings() { closeOverlay(settingsOverlay); }
 
 function openPro() {
-  proOverlay.classList.remove("hidden");
-  proOverlay.setAttribute("aria-hidden", "false");
+  track("open_pro");
+  openOverlay(proOverlay);
 }
-function closePro() {
-  proOverlay.classList.add("hidden");
-  proOverlay.setAttribute("aria-hidden", "true");
+
+function closePro() { closeOverlay(proOverlay); }
+
+function openOnboarding() {
+  openOverlay(onboardingOverlay);
+  onbCurrency.value = settings.currency || "EUR";
+  onbDark.checked = !!settings.dark;
+  onbStep1.classList.remove("hidden");
+  onbStep2.classList.add("hidden");
+}
+
+function closeOnboarding() { closeOverlay(onboardingOverlay); }
+
+function openWow(totalYear) {
+  openOverlay(wowOverlay);
+  wowYear.textContent = money(totalYear);
+  const week = totalYear / 52;
+  const day = totalYear / 365;
+  wowHint.textContent = `≈ ${money(week)}/settimana • ≈ ${money(day)}/giorno.`;
+}
+
+function closeWow() { closeOverlay(wowOverlay); }
+
+let cancelCtx = { subId: null };
+function openCancelAssistant(sub) {
+  cancelCtx.subId = sub.id;
+
+  const cat = findCatalog(sub.name);
+  const steps = (sub.cancelSteps && sub.cancelSteps.length) ? sub.cancelSteps
+              : (cat?.steps || [
+                  "Apri il sito/app del servizio.",
+                  "Vai su Account → Abbonamenti.",
+                  "Cerca “Annulla/Disdici” e conferma."
+                ]);
+
+  const url = sub.cancelUrl || cat?.cancelUrl || "#";
+
+  cancelSubtitle.textContent = `${sub.name} • guida rapida`;
+  cancelSteps.innerHTML = steps.map(s => `<div class="cancel-step">• ${escapeHtml(s)}</div>`).join("");
+  cancelLink.href = url;
+
+  openOverlay(cancelOverlay);
+}
+
+function closeCancel() {
+  cancelCtx.subId = null;
+  closeOverlay(cancelOverlay);
 }
 
 function syncCustomDaysVisibility() {
@@ -288,7 +438,7 @@ function save() {
 }
 
 /* ==========
-Rendering
+Stats + Rendering
 ========== */
 function uniqueCategoriesFromSubs() {
   const set = new Set(["Streaming","Musica","Gaming","Produttività","Cloud","Scuola","Altro"]);
@@ -299,17 +449,10 @@ function uniqueCategoriesFromSubs() {
 function rebuildCategoryFilter() {
   const cats = uniqueCategoriesFromSubs();
   const current = filterCategory.value || "all";
-  filterCategory.innerHTML = `<option value="all">Tutte le categorie</option>` +
+  filterCategory.innerHTML =
+    `<option value="all">Tutte le categorie</option>` +
     cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
-  if ([...filterCategory.options].some(o => o.value === current)) {
-    filterCategory.value = current;
-  }
-}
-
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (m) => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
-  }[m]));
+  if ([...filterCategory.options].some(o => o.value === current)) filterCategory.value = current;
 }
 
 function computeStats() {
@@ -320,9 +463,13 @@ function computeStats() {
 
   totalMonthlyEl.textContent = money(totalMonthly);
   totalYearlyEl.textContent = money(totalYearly);
+
+  const wk = totalYearly / 52;
+  const dy = totalYearly / 365;
+  shockNoteEl.textContent = `≈ ${money(wk)}/settimana • ≈ ${money(dy)}/giorno`;
+
   activeCountEl.textContent = String(active.length);
 
-  // prossimo addebito
   const now = new Date();
   const upcoming = active
     .map(s => ({ s, d: parseISO(s.nextDate) }))
@@ -339,11 +486,14 @@ function computeStats() {
     if (days >= 0) nextChargeNoteEl.textContent = `${upcoming.s.name} tra ${days} giorni`;
     else nextChargeNoteEl.textContent = `${upcoming.s.name} (scaduto da ${Math.abs(days)} giorni)`;
   }
+
+  return { totalMonthly, totalYearly, activeCount: active.length };
 }
 
 function filteredSortedSubs() {
   const q = (searchInput.value || "").trim().toLowerCase();
   const cat = filterCategory.value || "all";
+
   let list = [...subs];
 
   if (q) {
@@ -359,35 +509,30 @@ function filteredSortedSubs() {
   }
 
   const mode = sortBy.value || "next";
-  if (mode === "next") {
-    list.sort((a,b) => parseISO(a.nextDate) - parseISO(b.nextDate));
-  } else if (mode === "priceDesc") {
-    list.sort((a,b) => monthlyEquivalent(b) - monthlyEquivalent(a));
-  } else if (mode === "priceAsc") {
-    list.sort((a,b) => monthlyEquivalent(a) - monthlyEquivalent(b));
-  } else if (mode === "name") {
-    list.sort((a,b) => (a.name || "").localeCompare(b.name || "", "it"));
-  }
+  if (mode === "next") list.sort((a,b) => parseISO(a.nextDate) - parseISO(b.nextDate));
+  if (mode === "priceDesc") list.sort((a,b) => monthlyEquivalent(b) - monthlyEquivalent(a));
+  if (mode === "priceAsc") list.sort((a,b) => monthlyEquivalent(a) - monthlyEquivalent(b));
+  if (mode === "name") list.sort((a,b) => (a.name || "").localeCompare(b.name || "", "it"));
 
   return list;
 }
 
 function renderList() {
   const list = filteredSortedSubs();
-
   emptyState.classList.toggle("hidden", subs.length !== 0);
 
   subList.innerHTML = list.map(s => {
     const eqMonth = monthlyEquivalent(s);
-    const badgeCycle = s.cycle === "monthly" ? "Mensile"
-      : s.cycle === "yearly" ? "Annuale"
-      : `Ogni ${cycleToDays(s)}g`;
-
-    const pausedBadge = s.paused ? `<span class="badge paused">Pausato</span>` : "";
     const cat = escapeHtml(normalizeCategory(s.category));
-    const next = escapeHtml(s.nextDate.split("-").reverse().join("/"));
-    const remind = Number(s.remindDays ?? 0);
-    const remindText = remind > 0 ? `Promemoria: ${remind}g prima` : `Promemoria: off`;
+    const next = escapeHtml(String(s.nextDate || "").split("-").reverse().join("/"));
+
+    const cycleBadge =
+      s.cycle === "monthly" ? "Mensile" :
+      s.cycle === "yearly" ? "Annuale" :
+      `Ogni ${cycleToDays(s)}g`;
+
+    const annualMark = (s.cycle === "yearly") ? `<span class="badge annual">Rinnovo annuale</span>` : "";
+    const pausedBadge = s.paused ? `<span class="badge paused">Pausa</span>` : "";
 
     return `
 <div class="item">
@@ -395,40 +540,40 @@ function renderList() {
     <div class="item-title">
       ${escapeHtml(s.name)}
       <span class="badge">${cat}</span>
-      <span class="badge">${badgeCycle}</span>
+      <span class="badge">${escapeHtml(cycleBadge)}</span>
+      ${annualMark}
       ${pausedBadge}
     </div>
     <div class="item-meta">
       <span>Prossimo: <strong>${next}</strong></span>
-      <span>${remindText}</span>
-      ${s.payMethod ? `<span>Pagamento: ${escapeHtml(s.payMethod)}</span>` : ""}
+      <span>Reminder: 7g • 1g • oggi</span>
+      ${s.notes ? `<span>Note: ${escapeHtml(s.notes)}</span>` : ""}
     </div>
   </div>
 
   <div class="item-right">
-    <div class="price" title="Equivalente mensile">
-      ${money(eqMonth)}/mese
-    </div>
+    <div class="price" title="Equivalente mensile">${money(eqMonth)}/mese</div>
     <button class="btn secondary" data-act="toggle" data-id="${s.id}">
       ${s.paused ? "Riprendi" : "Pausa"}
     </button>
+    <button class="btn secondary" data-act="cancel" data-id="${s.id}">Disdetta</button>
     <button class="btn secondary" data-act="edit" data-id="${s.id}">Modifica</button>
     <button class="btn danger" data-act="del" data-id="${s.id}">Elimina</button>
   </div>
-</div>
-`;
+</div>`;
   }).join("");
 }
 
 function renderCategoryChart() {
   const active = subs.filter(s => !s.paused);
   const byCat = new Map();
+
   for (const s of active) {
     const c = normalizeCategory(s.category);
     byCat.set(c, (byCat.get(c) || 0) + monthlyEquivalent(s));
   }
 
-  const arr = Array.from(byCat.entries()).sort((a,b) => b[1] - a[1]);
+  const arr = Array.from(byCat.entries()).sort((a,b) => b[1] - a[1]).slice(0, 6);
   if (arr.length === 0) {
     catChart.innerHTML = `<div class="empty">Nessun dato (aggiungi abbonamenti).</div>`;
     return;
@@ -442,36 +587,59 @@ function renderCategoryChart() {
   <div class="bar-name">${escapeHtml(c)}</div>
   <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
   <div class="bar-value">${money(v)}</div>
-</div>
-`;
+</div>`;
   }).join("");
 }
 
 function renderAll() {
   rebuildCategoryFilter();
-  computeStats();
+  const st = computeStats();
   renderList();
   renderCategoryChart();
+  updateProUI();
 
-  // PRO gating UI
-  exportCsvBtn.disabled = !isPro();
-  exportCsvBtn.title = isPro() ? "Esporta CSV" : "Disponibile solo in PRO";
+  // value-first paywall trigger (after wow)
+  maybeShowPaywall(st);
+
+  return st;
+}
+
+/* ==========
+Pro + Paywall (value-first)
+========== */
+function updateProUI() {
+  // button copy
+  proBtn.textContent = isPro() ? "PRO ✓" : "PRO";
+}
+
+function maybeShowPaywall(stats) {
+  // Show only after user has REAL value: >= 3 subs and wow not yet seen
+  if (isPro()) return;
+  if (subs.length < 3) return;
+
+  const seen = localStorage.getItem(WOW_KEY) === "1";
+  if (!seen) {
+    localStorage.setItem(WOW_KEY, "1");
+    openWow(stats.totalYearly);
+  }
 }
 
 /* ==========
 CRUD
 ========== */
 function upsertSub(data) {
+  // FREE limit
+  if (!data.id && !isPro() && subs.length >= 10) {
+    showToast("Limite FREE: 10 abbonamenti. PRO (demo) per illimitati.");
+    openPro();
+    return false;
+  }
+
   if (!data.id) {
-    // limit FREE
-    if (!isPro() && subs.length >= 10) {
-      showToast("Limite FREE: 10 abbonamenti. Attiva PRO (demo) per illimitati.");
-      openPro();
-      return false;
-    }
     data.id = uid();
     subs.push(data);
     save();
+    track("save_sub");
     showToast("Abbonamento aggiunto.");
     return true;
   }
@@ -480,9 +648,11 @@ function upsertSub(data) {
   if (i >= 0) {
     subs[i] = data;
     save();
+    track("save_sub");
     showToast("Abbonamento aggiornato.");
     return true;
   }
+
   return false;
 }
 
@@ -508,18 +678,30 @@ function togglePause(id) {
   renderAll();
 }
 
+function markCanceled(id) {
+  const s = subs.find(x => x.id === id);
+  if (!s) return;
+  // For simplicity: set paused + note
+  s.paused = true;
+  s.notes = (s.notes ? (s.notes + " • ") : "") + "Disdetto (manuale)";
+  save();
+  showToast("Segnato come disdetto (in pausa).");
+  renderAll();
+}
+
 /* ==========
-Export / Import
+Export / Import (local-first safety)
 ========== */
 function exportJson() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    version: 1,
+    version: 2,
     subs,
     settings
   };
-  downloadFile("abbonamenti.json", JSON.stringify(payload, null, 2), "application/json");
-  showToast("JSON esportato.");
+  downloadFile("fintrack_abbonamenti.json", JSON.stringify(payload, null, 2), "application/json");
+  track("export");
+  showToast("Esportato.");
 }
 
 function importJson() {
@@ -538,6 +720,7 @@ function importJson() {
 
       save();
       document.body.classList.toggle("dark", !!settings.dark);
+      track("import");
       showToast("Import completato.");
       renderAll();
     } catch {
@@ -545,35 +728,6 @@ function importJson() {
     }
   };
   input.click();
-}
-
-function exportCsv() {
-  if (!isPro()) {
-    showToast("CSV è PRO. Attiva PRO (demo).");
-    openPro();
-    return;
-  }
-
-  const header = ["Nome","Categoria","Prezzo","Frequenza","Ogni_giorni","Prossimo_addebito","Pagamento","Promemoria_giorni","Pausato","Note"];
-  const rows = subs.map(s => [
-    s.name,
-    s.category,
-    s.price,
-    s.cycle,
-    s.everyDays || "",
-    s.nextDate,
-    s.payMethod || "",
-    s.remindDays ?? "",
-    s.paused ? "1" : "0",
-    (s.notes || "").replace(/\n/g, " ")
-  ]);
-
-  const csv = [header, ...rows]
-    .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(","))
-    .join("\n");
-
-  downloadFile("abbonamenti.csv", csv, "text/csv");
-  showToast("CSV esportato.");
 }
 
 function downloadFile(filename, content, mime) {
@@ -589,39 +743,136 @@ function downloadFile(filename, content, mime) {
 }
 
 /* ==========
-Events
+Reminders (7d / 1d / today)
 ========== */
-addBtn.addEventListener("click", () => openModal(null));
+function loadRemindState() {
+  try { return JSON.parse(localStorage.getItem(REMIND_KEY) || "{}") || {}; }
+  catch { return {}; }
+}
+function saveRemindState(obj) {
+  localStorage.setItem(REMIND_KEY, JSON.stringify(obj));
+}
 
-closeModalBtn.addEventListener("click", closeModal);
-cancelBtn.addEventListener("click", closeModal);
+function daysUntil(iso) {
+  const now = new Date();
+  const d = parseISO(iso);
+  const diff = Math.ceil((d - now) / (1000*60*60*24));
+  return diff;
+}
 
-// chiudi cliccando fuori
-modalOverlay.addEventListener("click", (e) => {
-  if (e.target === modalOverlay) closeModal();
-});
+function canNotify() {
+  return "Notification" in window;
+}
 
-subCycle.addEventListener("change", syncCustomDaysVisibility);
+async function requestNotifications() {
+  track("notif_request");
+  if (!canNotify()) {
+    showToast("Notifiche non supportate qui. I reminder funzionano quando apri l’app.");
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  if (perm === "granted") {
+    track("notif_granted");
+    showToast("Notifiche attivate.");
+  } else {
+    showToast("Notifiche non autorizzate.");
+  }
+}
+
+function fireNotification(title, body) {
+  if (!canNotify()) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    new Notification(title, { body });
+  } catch { /* ignore */ }
+}
+
+function checkReminders() {
+  const active = subs.filter(s => !s.paused && s.nextDate);
+  if (!active.length) return;
+
+  const remindLevels = [7, 1, 0];
+  const sent = loadRemindState();
+  const todayKey = toISODate(new Date());
+
+  for (const s of active) {
+    const du = daysUntil(s.nextDate);
+    if (!remindLevels.includes(du)) continue;
+
+    const k = `${s.id}:${todayKey}:${du}`;
+    if (sent[k]) continue;
+
+    const when = String(s.nextDate).split("-").reverse().join("/");
+    const msg = du === 0
+      ? `Oggi: ${s.name} (${when})`
+      : `Tra ${du}g: ${s.name} (${when})`;
+
+    showToast(msg);
+    fireNotification("FinTrack — Promemoria", msg);
+
+    sent[k] = 1;
+  }
+
+  saveRemindState(sent);
+}
 
 /* ==========
-✅ FIX: consenti virgola/punto mentre scrive (senza rompere nulla)
+Audit veloce (semplice, ma utile)
 ========== */
+function auditQuick() {
+  const active = subs.filter(s => !s.paused);
+  if (!active.length) return showToast("Aggiungi almeno 1 abbonamento.");
+
+  // 1) più costoso al mese
+  const sorted = [...active].sort((a,b) => monthlyEquivalent(b) - monthlyEquivalent(a));
+  const top = sorted[0];
+  const topCost = monthlyEquivalent(top);
+
+  const yearly = topCost * 12;
+  alert(
+`Audit veloce (1 mossa):
+Il più costoso è "${top.name}".
+≈ ${money(topCost)}/mese • ≈ ${money(yearly)}/anno
+
+Domanda: lo userai davvero questo mese?
+Se no → metti in pausa o disdici.`
+  );
+}
+
+/* ==========
+Events
+========== */
+
+// decimal input: allow digits + one separator
 subPrice.addEventListener("input", () => {
   let v = subPrice.value;
-
-  // consenti solo cifre, virgola e punto
   v = v.replace(/[^\d.,]/g, "");
-
-  // se ci sono più separatori, tieni solo il primo
   const firstSepIndex = v.search(/[.,]/);
   if (firstSepIndex !== -1) {
     const before = v.slice(0, firstSepIndex + 1);
     const after  = v.slice(firstSepIndex + 1).replace(/[.,]/g, "");
     v = before + after;
   }
-
   subPrice.value = v;
 });
+
+// autofill from catalog
+subName.addEventListener("change", () => {
+  const cat = findCatalog(subName.value);
+  if (!cat) return;
+  if (!subCategory.value) subCategory.value = cat.category;
+  if (!subCycle.value) subCycle.value = cat.cycle;
+});
+
+addBtn.addEventListener("click", () => openModal(null));
+closeModalBtn.addEventListener("click", closeModal);
+cancelBtn.addEventListener("click", closeModal);
+
+modalOverlay.addEventListener("click", (e) => {
+  if (e.target === modalOverlay) closeModal();
+});
+
+subCycle.addEventListener("change", syncCustomDaysVisibility);
 
 subForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -629,49 +880,48 @@ subForm.addEventListener("submit", (e) => {
   const id = editingId.value || "";
   const name = subName.value.trim();
   const category = normalizeCategory(subCategory.value);
-
-  const price = parseEuro(subPrice.value); // ✅ FIX: invece di Number(...)
+  const price = parseEuro(subPrice.value);
   const cycle = subCycle.value;
-  const everyDays = cycle === "custom" ? Number(subEveryDays.value) : null;
+  const everyDays = (cycle === "custom") ? Number(subEveryDays.value) : null;
   const nextDate = subNextDate.value;
-  const payMethod = subPayMethod.value.trim();
-  const remindDays = Number(subRemindDays.value ?? 0);
   const notes = subNotes.value.trim();
   const paused = !!subPaused.checked;
 
-  if (!name) return alert("Nome obbligatorio.");
-  if (!Number.isFinite(price) || price < 0) return alert("Prezzo non valido.");
+  if (!name) return alert("Servizio obbligatorio.");
+  if (!Number.isFinite(price) || price < 0) return alert("Prezzo non valido (usa 9,99 o 9.99).");
   if (!nextDate) return alert("Data obbligatoria.");
+  if (cycle === "custom" && (!Number.isFinite(everyDays) || everyDays < 1)) return alert("Giorni non validi.");
 
-  if (cycle === "custom" && (!Number.isFinite(everyDays) || everyDays < 1)) {
-    return alert("Inserisci giorni validi.");
-  }
+  const cat = findCatalog(name);
 
   const data = {
     id: id || undefined,
     name,
     category,
-    // ✅ FIX: arrotonda e salva come numero, ma va bene anche se l’utente scriveva con virgola
     price: Math.round(price * 100) / 100,
     cycle,
-    everyDays: everyDays || undefined,
+    everyDays: cycle === "custom" ? (everyDays || 30) : undefined,
     nextDate,
-    payMethod: payMethod || undefined,
-    remindDays: Number.isFinite(remindDays) ? remindDays : 0,
     notes: notes || undefined,
-    paused
+    paused,
+    cancelUrl: cat?.cancelUrl,
+    cancelSteps: cat?.steps
   };
 
   const ok = upsertSub(data);
   if (!ok) return;
 
-  closeModal(); // <-- IMPORTANTISSIMO: chiude dopo il salvataggio
+  closeModal();
   renderAll();
+
+  // after saving, check reminders immediately
+  checkReminders();
 });
 
 subList.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
+
   const act = btn.dataset.act;
   const id = btn.dataset.id;
   const s = subs.find(x => x.id === id);
@@ -680,23 +930,33 @@ subList.addEventListener("click", (e) => {
   if (act === "edit") openModal(s);
   if (act === "del") deleteSub(id);
   if (act === "toggle") togglePause(id);
+  if (act === "cancel") openCancelAssistant(s);
 });
 
 searchInput.addEventListener("input", renderAll);
 filterCategory.addEventListener("change", renderAll);
 sortBy.addEventListener("change", renderAll);
 
-exportJsonBtn.addEventListener("click", exportJson);
-importJsonBtn.addEventListener("click", importJson);
-exportCsvBtn.addEventListener("click", exportCsv);
+requestNotifBtn.addEventListener("click", requestNotifications);
+auditBtn.addEventListener("click", auditQuick);
+
+exportBtn.addEventListener("click", exportJson);
+importBtn.addEventListener("click", importJson);
+
+/* Cancel overlay */
+closeCancelBtn.addEventListener("click", closeCancel);
+cancelOverlay.addEventListener("click", (e) => { if (e.target === cancelOverlay) closeCancel(); });
+markCanceledBtn.addEventListener("click", () => {
+  if (!cancelCtx.subId) return;
+  markCanceled(cancelCtx.subId);
+  closeCancel();
+});
 
 /* Settings */
 settingsBtn.addEventListener("click", openSettings);
 closeSettingsBtn.addEventListener("click", closeSettings);
 closeSettingsBtn2.addEventListener("click", closeSettings);
-settingsOverlay.addEventListener("click", (e) => {
-  if (e.target === settingsOverlay) closeSettings();
-});
+settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOverlay) closeSettings(); });
 
 currencySelect.addEventListener("change", () => {
   settings.currency = currencySelect.value;
@@ -713,7 +973,7 @@ darkToggle.addEventListener("change", () => {
 toggleProBtn.addEventListener("click", () => {
   if (isPro()) localStorage.removeItem(PRO_KEY);
   else localStorage.setItem(PRO_KEY, "1");
-  openSettings(); // refresh UI inside
+  openSettings();
   renderAll();
 });
 
@@ -722,43 +982,85 @@ wipeBtn.addEventListener("click", () => {
   if (!ok) return;
   subs = [];
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(REMIND_KEY);
   showToast("Dati cancellati.");
   renderAll();
 });
 
-/* PRO modal */
+/* PRO */
 proBtn.addEventListener("click", openPro);
 activateProNow.addEventListener("click", () => {
   localStorage.setItem(PRO_KEY, "1");
+  track("activate_pro");
   showToast("PRO attivato (demo).");
   closePro();
   renderAll();
 });
 closeProBtn.addEventListener("click", closePro);
 closeProBtn2.addEventListener("click", closePro);
-proOverlay.addEventListener("click", (e) => {
-  if (e.target === proOverlay) closePro();
+proOverlay.addEventListener("click", (e) => { if (e.target === proOverlay) closePro(); });
+
+/* Onboarding */
+closeOnboardingBtn.addEventListener("click", () => {
+  localStorage.setItem(ONB_KEY, "1");
+  closeOnboarding();
+});
+onbNextBtn.addEventListener("click", () => {
+  settings.currency = onbCurrency.value;
+  settings.dark = !!onbDark.checked;
+  document.body.classList.toggle("dark", !!settings.dark);
+  save();
+
+  onbStep1.classList.add("hidden");
+  onbStep2.classList.remove("hidden");
+});
+onbAddBtn.addEventListener("click", () => openModal(null));
+onbDoneBtn.addEventListener("click", () => {
+  localStorage.setItem(ONB_KEY, "1");
+  closeOnboarding();
 });
 
+/* WOW */
+closeWowBtn.addEventListener("click", closeWow);
+wowClose.addEventListener("click", closeWow);
+wowOpenPro.addEventListener("click", () => { closeWow(); openPro(); });
+
 /* ==========
-Init + PWA
+PWA
 ========== */
 function registerSW() {
   if (!("serviceWorker" in navigator)) return;
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 
+/* ==========
+Init
+========== */
 function init() {
+  track("app_open");
   load();
+  rebuildCatalogDatalist();
 
-  // IMPORTANTISSIMO: al caricamento deve essere nascosto.
-  // Se per qualsiasi motivo fosse visibile, lo richiudiamo qui.
-  closeModal();
-  closeSettings();
-  closePro();
+  // close overlays for safety
+  closeOverlay(modalOverlay);
+  closeOverlay(settingsOverlay);
+  closeOverlay(proOverlay);
+  closeOverlay(cancelOverlay);
+  closeOverlay(wowOverlay);
+
+  // build info
+  buildInfo.textContent = `v1 • ${isPro() ? "PRO" : "FREE"}`;
+
+  // onboarding first time
+  const onbDone = localStorage.getItem(ONB_KEY) === "1";
+  if (!onbDone) openOnboarding();
 
   renderAll();
   registerSW();
+
+  // reminders check at start and periodically while open
+  checkReminders();
+  setInterval(checkReminders, 60 * 60 * 1000);
 }
 
 init();
